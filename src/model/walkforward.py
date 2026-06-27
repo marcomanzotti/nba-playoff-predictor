@@ -55,7 +55,7 @@ def _feature_cols(df: pd.DataFrame) -> list[str]:
         kept = json.loads(sel_path.read_text())["kept"]
         return [c for c in kept if c in df.columns]
     extra = [c for c in ("H2H_DIFF", "HOME_COURT") if c in df.columns]
-    return [c for c in df.columns if c.startswith("d_")] + extra
+    return [c for c in df.columns if c.startswith("d_") or c.startswith("x_")] + extra
 
 
 def _augment_symmetric(df: pd.DataFrame, feat_cols: list[str]) -> pd.DataFrame:

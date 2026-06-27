@@ -15,6 +15,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.features.series_interactions import interaction_terms, league_center
+
 ROOT = Path(__file__).resolve().parents[2]
 INTERIM = ROOT / "data" / "interim"
 PROCESSED = ROOT / "data" / "processed"
@@ -37,7 +39,10 @@ class SeriesPredictor:
         self.tf_idx = self.tf.set_index(["SEASON_START_YEAR", "TEAM_ABBREVIATION"])
         self.h2h_idx = self.h2h.set_index(["SEASON_START_YEAR", "TEAM", "OPP"])
         self.seed_idx = self.conf.set_index(["SEASON_START_YEAR", "TEAM_ABBREVIATION"])["SEED"]
-        # ordine colonne atteso dal modello: d_<col> + H2H_DIFF + HOME_COURT
+        # centro di riferimento per le interazioni di stile (media league/stagione)
+        self.centers = {int(y): league_center(g)
+                        for y, g in self.tf.groupby("SEASON_START_YEAR")}
+        # ordine colonne atteso dal modello: d_<col> + interazioni x_* + H2H + HOME
         self.feat_order = feat_order or (
             [f"d_{c}" for c in self.team_cols] + ["H2H_DIFF", "HOME_COURT"]
         )
@@ -77,6 +82,9 @@ class SeriesPredictor:
         row = {f"d_{c}": diff[c] for c in self.team_cols}
         row["H2H_DIFF"] = h2h_diff
         row["HOME_COURT"] = self._home_court(year, a, b)
+        # interazioni di STILE (matchup): stesse usate in series_dataset, cosi le
+        # colonne x_* attese dal modello sono presenti anche in predizione.
+        row.update(interaction_terms(fa, fb, self.centers.get(year, {})))
         x = pd.DataFrame([row])[self.feat_order].fillna(0.0)
         return x
 
