@@ -1,0 +1,45 @@
+# NBA Playoff Predictor — configurazione globale
+# Vedi PROJECT_SPEC.md per il significato dei parametri.
+
+horizon:
+  # Orizzonte temporale: 30 stagioni. Le stagioni NBA sono indicate con
+  # l'anno di inizio (es. 1996 = stagione 1996-97).
+  start_season: 1996        # prima stagione inclusa
+  end_season: 2025          # ultima stagione inclusa (2025-26)
+  # Split temporale (in ordine cronologico, mai mescolato):
+  n_train: 20               # prime 20 stagioni
+  n_validation: 5           # successive 5
+  n_test: 5                 # ultime 5 (intoccabili fino al verdetto finale)
+
+hometown:
+  # Scala graduata 0-4 (vedi spec §3.3)
+  long_tenure_min_seasons: 4   # N stagioni nella squadra per contare "di lunga data"
+
+# Fatti tecnici emersi dall'audit Fase 0 (2026-06-26):
+#  - Stat giocatore/squadra/head-to-head/playoff: copertura piena dal 1996-97.
+#  - Combine: copertura piena solo DAL 2000. Stagioni 1996-99 -> proxy imputato.
+#  - Endpoint Combine: draftcombinestats.DraftCombineStats(season_all_time='YYYY')
+#    dove YYYY e' l'anno solare dell'evento (NON il formato '1996-97').
+combine:
+  first_available_year: 2000   # prima Combine con anthro+atletismo affidabili
+  impute_before: true          # pre-2000 -> valori proxy via clustering (is_imputed)
+
+clustering:
+  archetype_k: 8            # numero cluster archetipo di gioco (da tarare)
+  level_categories:         # clustering #2 livello/impatto
+    - superstar
+    - all_star
+    - quality_starter
+    - role_player
+    - bench
+    - bench_warmer
+
+collection:
+  request_sleep_sec: 0.6    # pausa tra chiamate nba_api (rate limit)
+  max_retries: 3
+  cache_dir: data/raw
+
+paths:
+  raw: data/raw
+  interim: data/interim
+  processed: data/processed

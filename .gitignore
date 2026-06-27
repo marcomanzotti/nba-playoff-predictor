@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+
+# Downloaded data / cache (regenerable) — don't version the large stuff
+data/raw/
+data/interim/
+data/processed/
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# but DO version the example season JSON (it's the upload-format reference)
+!data/sample_new_season.json
+
+# figures ARE versioned (used in README) — reports/figures/ is kept

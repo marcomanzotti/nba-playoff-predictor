@@ -1,0 +1,29 @@
+# --- Data collection ---
+nba_api
+requests
+beautifulsoup4
+lxml
+
+# --- Data handling ---
+pandas
+numpy
+pyarrow
+
+# --- Modeling ---
+scikit-learn
+xgboost
+shap
+
+# --- Visualization ---
+matplotlib
+seaborn
+plotly
+
+# --- Interactive dashboard ---
+streamlit
+
+# --- Notebooks / utils ---
+jupyter
+ipykernel
+pyyaml
+tqdm
