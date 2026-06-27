@@ -22,6 +22,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.features.series_interactions import interaction_terms, league_center
+
 ROOT = Path(__file__).resolve().parents[2]
 INTERIM = ROOT / "data" / "interim"
 PROCESSED = ROOT / "data" / "processed"
@@ -43,6 +45,9 @@ def build_series_dataset() -> pd.DataFrame:
 
     feat_cols = _team_feature_cols(tf)
     tf_idx = tf.set_index(["SEASON_START_YEAR", "TEAM_ABBREVIATION"])
+
+    # centro di riferimento per le interazioni di stile (media league per stagione)
+    centers = {int(y): league_center(g) for y, g in tf.groupby("SEASON_START_YEAR")}
 
     # head-to-head RS: vittorie di TEAM su OPP in quella stagione
     h2h_idx = h2h.set_index(["SEASON_START_YEAR", "TEAM", "OPP"])
@@ -85,6 +90,8 @@ def build_series_dataset() -> pd.DataFrame:
         row = {**meta, "H2H_DIFF": h2h_diff, "HOME_COURT": home_court}
         for c in feat_cols:
             row[f"d_{c}"] = float(diff[c]) if pd.notna(diff[c]) else np.nan
+        # --- interazioni di STILE (matchup), antisimmetriche per costruzione ---
+        row.update(interaction_terms(fa, fb, centers.get(syear, {})))
         rows.append(row)
 
     base = pd.DataFrame(rows)
@@ -97,7 +104,8 @@ def build_series_dataset() -> pd.DataFrame:
     mirror["label"] = 1 - base["label"]
     mirror["H2H_DIFF"] = -base["H2H_DIFF"]
     mirror["HOME_COURT"] = -base["HOME_COURT"]
-    diff_cols = [c for c in base.columns if c.startswith("d_")]
+    # d_* e x_* sono TUTTE antisimmetriche -> si negano nel mirror.
+    diff_cols = [c for c in base.columns if c.startswith("d_") or c.startswith("x_")]
     mirror[diff_cols] = -base[diff_cols]
 
     full = pd.concat([base, mirror], ignore_index=True)

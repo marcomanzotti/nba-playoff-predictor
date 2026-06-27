@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from src.app.bracket_view import render_bracket_html
 from src.app.engine import (available_seasons, interactive_for, real_outcome,
                             team_strengths)
 from src.app.teams_meta import NBA_LOGO_URL, TROPHY_URL
@@ -112,90 +113,69 @@ def advancement_table(adv: pd.DataFrame) -> pd.DataFrame:
         ["Team", "Round 2 %", "Conf SF %", "Conf Finals %", "Champion %"]]
 
 
-# ---------------- interactive bracket ----------------
-def _series_card(s, key_prefix: str):
-    """Render one series card + an override radio. Returns the chosen winner
-    ('Model' means: no override)."""
+# ---------------- interactive bracket (TV-style tabellone) ----------------
+def _whatif_radio(s, key_prefix: str):
+    """One compact override control for a series. Returns chosen winner or None."""
     a, b = s.team_a, s.team_b
-    forced_cls = " forced" if s.forced_winner else ""
-    win = s.modal_winner
-    def line(team, p, is_win):
-        cls = "win" if is_win else "lose"
-        return (f'<div class="team-line {cls}">{_img(team,26)}'
-                f'<span class="nm">{team}</span><span class="p">{p:.0%}</span></div>')
-    tag = '<span class="tag">WHAT-IF</span>' if s.forced_winner else ""
-    body = (f'<div class="series{forced_cls}">'
-            f'<div class="rnd">{s.round_name}{tag}</div>'
-            f'{line(a, s.p_a, win==a)}{line(b, s.p_b, win==b)}</div>')
-    st.markdown(body, unsafe_allow_html=True)
-    # override control
+    if a is None or b is None:
+        return None
     opts = ["Model", a, b]
     cur = s.forced_winner if s.forced_winner in (a, b) else "Model"
-    pick = st.radio("force winner", opts, index=opts.index(cur),
-                    key=f"{key_prefix}_{s.sid}", horizontal=True,
-                    label_visibility="collapsed")
+    pick = st.radio(f"{s.round_name}: {a} vs {b}", opts, index=opts.index(cur),
+                    key=f"{key_prefix}_{s.sid}", horizontal=True)
     return None if pick == "Model" else pick
 
 
 def render_bracket(ib, year: int):
-    """Interactive what-if bracket. Overrides live in session_state['ov']."""
+    """Interactive what-if bracket, drawn as a TV-style tabellone.
+
+    The visual bracket (logos, connectors, highlighted winners) is HTML; the
+    what-if controls live in a compact expander so the board stays clean.
+    Overrides live in session_state['ov'].
+    """
     ov = st.session_state.setdefault("ov", {})
 
     top = st.columns([3, 1])
-    top[0].markdown("### 🗺️ Interactive bracket — override any winner to see the what-if")
+    top[0].markdown("### 🗺️ Playoff bracket — the model's most-likely path to the title")
     if top[1].button("↩︎ Reset what-ifs", use_container_width=True):
-        # clear stored overrides + the radio widget states
         for k in list(st.session_state.keys()):
             if k == "ov" or k.startswith(f"ovr{year}_"):
                 del st.session_state[k]
         ov = st.session_state.setdefault("ov", {})
         st.rerun()
 
-    # First pass: read current series with existing overrides so the radios
-    # show the right teams; the radios themselves then update `ov`.
     series = ib.series(overrides=ov)
-    by = {s.sid: s for s in series}
-
-    east = [s for s in series if s.conference == "East"]
-    west = [s for s in series if s.conference == "West"]
     finals = next(s for s in series if s.sid == "FINALS")
+    champ = finals.modal_winner
 
-    def col_for_round(series_list, rnd):
-        return [s for s in series_list if s.round == rnd]
+    # 1) the visual board
+    st.markdown(render_bracket_html(series, champ), unsafe_allow_html=True)
 
+    # 2) what-if controls, grouped by conference, in an expander
     new_ov = {}
-    cE, cMid, cW = st.columns([1.1, 1, 1.1])
-    with cE:
-        st.markdown("#### 🟢 East")
-        for rnd, name in [(1, "First round"), (2, "Conf semis"), (3, "Conf finals")]:
-            for s in col_for_round(east, rnd):
-                pick = _series_card(by[s.sid], f"ovr{year}")
-                if pick:
-                    new_ov[s.sid] = pick
-    with cW:
-        st.markdown("#### 🔵 West")
-        for rnd, name in [(1, "First round"), (2, "Conf semis"), (3, "Conf finals")]:
-            for s in col_for_round(west, rnd):
-                pick = _series_card(by[s.sid], f"ovr{year}")
-                if pick:
-                    new_ov[s.sid] = pick
-    with cMid:
-        st.markdown("#### 🏆 Finals")
-        st.markdown(f'<img src="{TROPHY_URL}" style="height:64px;display:block;'
-                    f'margin:.2rem auto;filter:drop-shadow(0 0 14px {GOLD})">',
-                    unsafe_allow_html=True)
-        pick = _series_card(finals, f"ovr{year}")
-        if pick:
-            new_ov["FINALS"] = pick
-        # show the resolved champion of the (possibly forced) bracket
-        champ = finals.modal_winner
-        if champ:
-            st.markdown(
-                f'<div class="champ-card"><div class="lbl">Bracket winner</div>'
-                f'{_img(champ,72)}<div class="team">{champ}</div></div>',
-                unsafe_allow_html=True)
+    with st.expander("🎛️  What-if controls — force any series winner and watch the bracket re-bracket"):
+        cW, cMid, cE = st.columns(3)
+        rounds = [(1, "First round"), (2, "Conf semis"), (3, "Conf finals")]
+        with cW:
+            st.markdown("#### 🔵 West")
+            for rnd, _ in rounds:
+                for s in [x for x in series if x.conference == "West" and x.round == rnd]:
+                    pick = _whatif_radio(s, f"ovr{year}")
+                    if pick:
+                        new_ov[s.sid] = pick
+        with cE:
+            st.markdown("#### 🟢 East")
+            for rnd, _ in rounds:
+                for s in [x for x in series if x.conference == "East" and x.round == rnd]:
+                    pick = _whatif_radio(s, f"ovr{year}")
+                    if pick:
+                        new_ov[s.sid] = pick
+        with cMid:
+            st.markdown("#### 🏆 Finals")
+            pick = _whatif_radio(finals, f"ovr{year}")
+            if pick:
+                new_ov["FINALS"] = pick
 
-    # If overrides changed, store and rerun so downstream rounds re-resolve.
     if new_ov != ov:
         st.session_state["ov"] = new_ov
         st.rerun()
@@ -246,7 +226,8 @@ def render_prediction(adv, mu, real=None):
 st.sidebar.markdown(f'<img src="{NBA_LOGO_URL}" style="height:54px;margin:.2rem 0 1rem">',
                     unsafe_allow_html=True)
 st.sidebar.markdown("## 🏀 Mode")
-mode = st.sidebar.radio("mode", ["Historical season", "Upload a season (JSON)", "About"],
+mode = st.sidebar.radio("mode", ["Historical season", "Upload a season (JSON)",
+                                 "Recipe & Findings", "About"],
                         label_visibility="collapsed")
 st.sidebar.markdown("---")
 st.sidebar.caption("Walk-forward · no leakage · 1996–2025")
@@ -303,17 +284,71 @@ elif mode == "Upload a season (JSON)":
     else:
         st.info("Upload a JSON or tick the example box.")
 
+elif mode == "Recipe & Findings":
+    st.markdown("## 🧪 The recipe — what *actually* wins a title")
+    st.caption("V2 findings. We searched **all** player features (not just the 5 "
+               "hypotheses) with honest out-of-time validation, and separated "
+               "**talent** (an outcome) from **structure** (buildable traits).")
+
+    rec_path = ROOT / "data" / "processed" / "recipe_structural.json"
+    if rec_path.exists():
+        rs = json.loads(rec_path.read_text())
+        c1, c2, c3 = st.columns(3)
+        c1.metric("All features → net rating", "R² 0.67", help="How well team strength is explained")
+        c2.metric("Structure only → deep run",
+                  f"R² {rs.get('structure_only',{}).get('r2_oot_final','?')}",
+                  help="Buildable traits, ignoring talent")
+        c3.metric("At equal talent (over-perf)",
+                  f"R² {rs.get('over_performance',{}).get('r2_oot_final','?')}",
+                  help="What separates equally-talented teams")
+
+        st.info("**Verdict.** Talent explains ~80% of who goes far. **At equal "
+                "talent, the only repeatable structural lever is playoff "
+                "experience** — shooting, size and athleticism give no systematic "
+                "edge once talent is controlled. The rest is variance.")
+
+        st.markdown("#### Structure-only recipe for a deep playoff run")
+        so = rs.get("structure_only", {})
+        rows = []
+        for f in so.get("selected", []):
+            d = so["direction"][f]
+            rows.append({"Lever": f, "Importance": round(d["importance"], 3),
+                         "Direction": "↑ helps" if d["direction"] > 0 else "↓ hurts"})
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.markdown("## 🎯 Can we predict series better with style matchups?")
+    st.markdown("""
+We added 7 **antisymmetric style-interaction** features (offense-vs-defense,
+shooting-vs-defense, size mismatch, pace clash, …). They are correct and survive
+selection — but they **do not** beat the model without them, and the simple
+*"who had the better record"* baseline still wins.
+
+| Test 2021–2025 | Without matchups | With matchups |
+|---|---|---|
+| Accuracy | 65–68% | **65%** |
+| Log loss | 0.636 | **0.636** |
+
+**Why:** gradient-boosted trees already build these interactions on their own,
+and 30 series/year is too noisy to measure a small matchup edge. **The NBA
+playoffs are dominated by strength + chance** — establishing that ceiling *is*
+the result. Full write-up: `docs/V2_FINDINGS.md`.
+""")
+
 else:
     st.markdown(f'<img src="{NBA_LOGO_URL}" style="height:48px;margin-bottom:1rem">',
                 unsafe_allow_html=True)
     st.markdown("""
 ### How a team wins
 
-This project tests a thesis: **what actually makes a team win in the NBA?**
-Who wins a *series* is dominated by net rating and home court — but the thesis
-factors (three-point shooting, size, playoff experience, role quality) act
-**upstream**: they **build** the high-net-rating team that then wins. Player
-features explain ~62% of net rating.
+This project asks: **what actually makes a team win in the NBA?** The honest,
+data-backed answer (see **Recipe & Findings**): **talent dominates** — it
+explains ~80% of how far a team goes. Once you control for talent, the **only**
+repeatable structural lever is **playoff experience**; three-point shooting,
+size and athleticism give no systematic edge. The playoffs are **strength +
+chance**, and no model reliably beats *"who had the better regular-season
+record."* Quantifying that ceiling is the result.
 
 **Interactive what-if bracket:** in *Historical season* mode you can override
 any series winner — e.g. *"what if Atlanta had beaten New York?"* — and the

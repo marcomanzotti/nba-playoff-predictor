@@ -37,8 +37,8 @@ def _priority(feat: str) -> int:
     # le feature-tesi T1..T5 hanno priorita' massima (leggibilita' tesi)
     if any(t in feat for t in ("T1_", "T2_", "T3_", "T4_", "T5_")):
         return 5
-    # matchup espliciti
-    if feat in ("H2H_DIFF", "HOME_COURT"):
+    # matchup espliciti + interazioni di stile (il punto dell'esercizio V2)
+    if feat in ("H2H_DIFF", "HOME_COURT") or feat.startswith("x_"):
         return 4
     # rating sintetici preferiti ai grezzi
     if "NET_RATING" in feat or feat == "d_W_PCT":
@@ -51,7 +51,9 @@ def _priority(feat: str) -> int:
 
 def select_features(corr_threshold: float = CORR_THRESHOLD) -> list[str]:
     sd = pd.read_parquet(PROCESSED / "series_dataset.parquet")
-    all_feats = [c for c in sd.columns if c.startswith("d_") or c in ("H2H_DIFF", "HOME_COURT")]
+    all_feats = [c for c in sd.columns
+                 if c.startswith("d_") or c.startswith("x_")
+                 or c in ("H2H_DIFF", "HOME_COURT")]
     # drop esplicito degli z-epoca ridondanti
     feats = [f for f in all_feats if not f.startswith(HARD_DROP_PREFIXES)]
 
