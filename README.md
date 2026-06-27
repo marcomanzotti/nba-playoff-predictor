@@ -86,15 +86,27 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Real NBA imagery throughout: official team logos, the **real Larry O'Brien
+Championship Trophy**, and the NBA league mark (all from public CDNs — this is a
+non-commercial, educational repo).
+
 Three modes:
 - **Historical season** — pick any season (1996-2025); the model trains only on
-  prior seasons and predicts the bracket, round-by-round, with each team's title
-  odds and every matchup's win probabilities for **both** teams.
+  prior seasons and shows an **interactive what-if bracket** plus each team's
+  title odds and every matchup's win probabilities for **both** teams.
 - **Upload a season (JSON)** — drop a JSON with a finished regular season's
   per-player and per-team values; the full pipeline runs automatically and
   predicts that season's playoffs. See [`data/sample_new_season.json`](data/sample_new_season.json)
   for the exact format.
 - **About the model** — the methodology and the causal chain.
+
+### 🔮 Interactive what-if bracket
+
+In *Historical season* mode you can **override any series winner** — e.g.
+*"what if Atlanta had beaten New York?"* — and the whole bracket **plus every
+team's title odds recompute, conditioned on your pick**. Forced series are locked;
+everything downstream is re-simulated by Monte Carlo. One click resets all
+what-ifs. (Implemented in [`src/model/interactive_bracket.py`](src/model/interactive_bracket.py).)
 
 ---
 
@@ -129,7 +141,8 @@ src/
   collect/                 data collection (nba_api) + local cache
   features/                feature engineering: technical, career, physical,
                            role, level, home/away, team aggregation, selection
-  model/                   series dataset, walk-forward, bracket, season report
+  model/                   series dataset, walk-forward, bracket, interactive
+                           what-if bracket, season report
   evaluate/                thesis test, SHAP, net-rating drivers
   ingest/                  ingest a new season from JSON → predictions
   viz/                     figure generation

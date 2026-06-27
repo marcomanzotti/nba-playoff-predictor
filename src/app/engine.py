@@ -16,6 +16,7 @@ import pandas as pd
 
 from src.model.backtest_bracket import _fit_until
 from src.model.bracket import build_conference_bracket
+from src.model.interactive_bracket import InteractiveBracket
 from src.model.season_report import advancement_probabilities, matchup_probabilities
 from src.model.series_predictor import SeriesPredictor
 from src.model.walkforward import _feature_cols
@@ -43,6 +44,11 @@ def predict_season(year: int, n_sims: int = 5000) -> dict:
     adv = advancement_probabilities(root, predictor, year, n_sims=n_sims)
     mu = matchup_probabilities(root, predictor, year)
     return {"advancement": adv, "matchups": mu, "year": year}
+
+
+def interactive_for(year: int) -> InteractiveBracket:
+    """Interactive what-if bracket for a historical season (with overrides)."""
+    return InteractiveBracket(load_engine_for(year), year)
 
 
 def real_outcome(year: int) -> dict:
